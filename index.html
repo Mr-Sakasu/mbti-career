@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MBTI×業界 傾向診断</title>
+<style>
+  :root {
+    --bg: #F3F6F5;
+    --surface: #FFFFFF;
+    --ink: #182524;
+    --muted: #5C6B68;
+    --border: #DBE3E0;
+    --accent: #0E7C6E;
+    --accent-ink: #FFFFFF;
+    --chip: #E5F0ED;
+    --pos: #009E85;
+    --neg: #C05621;
+    --track: #E7EDEB;
+    --shadow: 0 1px 2px rgba(24, 37, 36, 0.05), 0 4px 16px rgba(24, 37, 36, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0F1413;
+      --surface: #171E1C;
+      --ink: #E7ECEA;
+      --muted: #97A5A1;
+      --border: #2A3330;
+      --accent: #37B5A4;
+      --accent-ink: #0F1413;
+      --chip: #1F2C29;
+      --pos: #24A896;
+      --neg: #CE7439;
+      --track: #232C2A;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F3F6F5;
+    --surface: #FFFFFF;
+    --ink: #182524;
+    --muted: #5C6B68;
+    --border: #DBE3E0;
+    --accent: #0E7C6E;
+    --accent-ink: #FFFFFF;
+    --chip: #E5F0ED;
+    --pos: #009E85;
+    --neg: #C05621;
+    --track: #E7EDEB;
+    --shadow: 0 1px 2px rgba(24, 37, 36, 0.05), 0 4px 16px rgba(24, 37, 36, 0.06);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1413;
+    --surface: #171E1C;
+    --ink: #E7ECEA;
+    --muted: #97A5A1;
+    --border: #2A3330;
+    --accent: #37B5A4;
+    --accent-ink: #0F1413;
+    --chip: #1F2C29;
+    --pos: #24A896;
+    --neg: #CE7439;
+    --track: #232C2A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans CJK JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; color: inherit; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .app { max-width: 1020px; margin: 0 auto; padding: 28px 20px 48px; }
+
+  /* ---------- header ---------- */
+  .site-head { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .mark {
+    width: 46px; height: 46px; flex: none; border-radius: 12px;
+    background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center;
+    font-size: 22px; font-weight: 700;
+  }
+  .site-head h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.01em; text-wrap: balance; }
+  .site-head p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+
+  /* ---------- layout ---------- */
+  .cols { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 900px) {
+    .cols { grid-template-columns: 400px 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+  .inputs { display: flex; flex-direction: column; gap: 26px; }
+  .results { display: flex; flex-direction: column; gap: 18px; }
+
+  .step-label { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .step-no { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: var(--accent); }
+  .step-title { font-size: 15px; font-weight: 700; }
+  .step-note { font-size: 12px; color: var(--muted); margin: -8px 0 12px; }
+
+  /* ---------- MBTI toggles ---------- */
+  .axis-row { margin-bottom: 12px; }
+  .axis-name { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; letter-spacing: 0.04em; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg button {
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 10px; padding: 8px 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    font-size: 13px; transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .seg button .ltr { font-weight: 800; font-size: 15px; }
+  .seg button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  }
+  .seg button:hover:not([aria-pressed="true"]) { border-color: var(--accent); }
+
+  .type-now {
+    margin-top: 16px; padding: 14px 16px; border-radius: 12px;
+    background: var(--chip); display: flex; gap: 14px; align-items: center;
+  }
+  .type-code { font-size: 30px; font-weight: 800; letter-spacing: 0.05em; }
+  .type-meta .type-label { font-weight: 700; font-size: 14px; }
+  .type-meta .type-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- vote form ---------- */
+  .ind-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ind-card {
+    border: 1px solid var(--border); background: var(--surface);
+    border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 10px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .ind-card:hover { border-color: var(--accent); }
+  .ind-card .tile {
+    width: 34px; height: 34px; flex: none; border-radius: 9px;
+    background: var(--chip); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; font-size: 16px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .ind-card .ind-name { font-size: 12.5px; font-weight: 700; line-height: 1.35; }
+  .ind-card[aria-pressed="true"] { border-color: var(--accent); background: var(--chip); }
+  .ind-card[aria-pressed="true"] .tile { background: var(--accent); color: var(--accent-ink); }
+
+  .vote-btn {
+    margin-top: 14px; width: 100%;
+    border: none; border-radius: 12px; padding: 12px 16px;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .vote-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .vote-done {
+    margin-top: 4px; padding: 14px 16px; border-radius: 12px;
+    background: var(--chip); font-size: 13px; line-height: 1.7;
+  }
+  .vote-done b { color: var(--accent); }
+  .vote-error { margin-top: 10px; font-size: 12.5px; color: var(--neg); }
+
+  /* ---------- distribution chart ---------- */
+  .panel-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .panel-head h2 { margin: 0; font-size: 17px; font-weight: 800; text-wrap: balance; }
+  .n-badge {
+    font-size: 11.5px; font-weight: 700; color: var(--accent);
+    background: var(--chip); border-radius: 999px; padding: 2px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .demo-badge {
+    font-size: 11px; font-weight: 700; color: var(--neg);
+    border: 1px solid var(--neg); border-radius: 999px; padding: 1px 9px;
+  }
+  .panel-sub { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+
+  .dist { display: flex; flex-direction: column; gap: 4px; }
+  .dist-row {
+    display: grid; grid-template-columns: 118px 1fr 84px;
+    align-items: center; gap: 10px;
+    border: 1px solid transparent; border-radius: 10px; padding: 6px 8px;
+    background: none; cursor: pointer; width: 100%; text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .dist-row:hover { background: var(--chip); }
+  .dist-row[data-current="true"] { border-color: var(--accent); background: var(--chip); }
+  .dist-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .dist-name .tile {
+    width: 26px; height: 26px; flex: none; border-radius: 7px;
+    background: var(--chip); color: var(--accent);
+    display: grid; place-items: center; font-weight: 700; font-size: 12.5px;
+  }
+  .dist-row[data-current="true"] .dist-name .tile { background: var(--accent); color: var(--accent-ink); }
+  .dist-name span:last-child { font-size: 12px; font-weight: 700; line-height: 1.3; }
+  .dist-bar { height: 12px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .dist-bar i {
+    display: block; height: 100%; border-radius: 4px; background: var(--pos);
+    min-width: 2px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .dist-val { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .dist-val small { color: var(--muted); font-weight: 600; }
+  .chart-note { font-size: 11px; color: var(--muted); margin: 12px 0 0; }
+  @media (max-width: 520px) {
+    .dist-row { grid-template-columns: 104px 1fr 76px; gap: 8px; }
+  }
+
+  /* ---------- loading / error ---------- */
+  .state-box { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13.5px; }
+  .spinner {
+    width: 26px; height: 26px; margin: 0 auto 12px;
+    border: 3px solid var(--track); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .retry-btn {
+    margin-top: 12px; border: 1px solid var(--border); background: var(--surface);
+    border-radius: 10px; padding: 8px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .retry-btn:hover { border-color: var(--accent); }
+
+  /* ---------- industry detail ---------- */
+  .detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .detail-head .tile {
+    width: 40px; height: 40px; flex: none; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; font-weight: 700; font-size: 18px;
+  }
+  .detail-head h3 { margin: 0; font-size: 16px; font-weight: 800; }
+  .detail-head p { margin: 0; font-size: 11.5px; color: var(--muted); }
+  .detail-desc { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+
+  .sec-title { font-size: 13.5px; font-weight: 700; margin: 0 0 10px; letter-spacing: 0.03em; }
+  .sc-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 720px) { .sc-grid { grid-template-columns: 1fr 1fr; } }
+  .sc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .sc-list li { display: flex; gap: 9px; font-size: 13px; }
+  .sc-list li::before { flex: none; font-weight: 800; line-height: 1.7; }
+  .sc-list.good li::before { content: "＋"; color: var(--pos); }
+  .sc-list.warn li::before { content: "△"; color: var(--neg); }
+
+  .role-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .role-chips span {
+    background: var(--chip); border-radius: 999px; padding: 4px 13px;
+    font-size: 12px; font-weight: 600;
+  }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+  footer.note {
+    margin-top: 26px; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.8;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="site-head">
+    <div class="mark" aria-hidden="true">相</div>
+    <div>
+      <h1>MBTI × 志望業界 傾向診断</h1>
+      <p>あなたと同じMBTIタイプの人が、どの業界を志望しているかが見られます</p>
+    </div>
+  </header>
+
+  <div class="cols">
+    <section class="panel inputs" aria-label="入力">
+      <div>
+        <div class="step-label"><span class="step-no">STEP 1</span><span class="step-title">あなたのMBTIタイプ</span></div>
+        <div id="axisToggles"></div>
+        <div class="type-now">
+          <div class="type-code" id="typeCode"></div>
+          <div class="type-meta">
+            <div class="type-label" id="typeLabel"></div>
+            <div class="type-desc" id="typeDesc"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="step-label"><span class="step-no">STEP 2</span><span class="step-title">あなたの志望業界を投稿</span></div>
+        <p class="step-note">あなたの回答が「同じタイプの人の傾向」のデータになります(1人1回)。</p>
+        <div id="voteArea"></div>
+      </div>
+    </section>
+
+    <section class="results" aria-label="傾向グラフと業界詳細">
+      <div class="panel" id="chartPanel" aria-live="polite"></div>
+      <div class="panel" id="detailPanel"></div>
+    </section>
+  </div>
+
+  <footer class="note">
+    本アプリの傾向データは訪問者の投稿(+初期シードデータ)にもとづく参考コンテンツです。<br>
+    適職・適性を保証するものではありません。業界研究のきっかけとしてお楽しみください。
+  </footer>
+</div>
+
+<script>
+// backend/setup.sh 実行後に表示される Function URL を設定する(末尾スラッシュなし)。
+// 空のままの場合はデモモード(擬似データ)で動作する。
+const API_URL = "https://5oqpofuosqgdn2tntlma5hd2ia0zimje.lambda-url.ap-northeast-1.on.aws";
+
+/*__DATA_AND_LOGIC__*/
+const AXES = [
+  { key: "EI", pos: "E", neg: "I", posLabel: "外向", negLabel: "内向", name: "エネルギーの向き" },
+  { key: "SN", pos: "S", neg: "N", posLabel: "感覚", negLabel: "直観", name: "ものの見方" },
+  { key: "TF", pos: "T", neg: "F", posLabel: "思考", negLabel: "感情", name: "判断のしかた" },
+  { key: "JP", pos: "J", neg: "P", posLabel: "計画", negLabel: "柔軟", name: "外界との関わり" }
+];
+
+const TYPES = {
+  ISTJ: { label: "着実な実務家", desc: "決めたことをやり抜く責任感と正確さが持ち味。手順の整った環境で力を発揮します。" },
+  ISFJ: { label: "支える堅実派", desc: "細やかな気配りと丁寧な仕事ぶりが強み。人の役に立つ実感がモチベーションに。" },
+  INFJ: { label: "静かな理想家", desc: "本質を見抜く洞察力と理想への粘り強さ。意義を感じられる仕事で長く輝きます。" },
+  INTJ: { label: "構想する戦略家", desc: "長期視点で物事を設計し独力で完遂するタイプ。非効率の改善に燃えます。" },
+  ISTP: { label: "冷静な職人", desc: "手を動かして仕組みを理解するのが得意。トラブルにも動じない現場対応力。" },
+  ISFP: { label: "感性の実践者", desc: "自分の美意識を大切に、目の前の仕事へ丁寧に向き合う柔らかな協調型。" },
+  INFP: { label: "価値を紡ぐ人", desc: "信じる意義を仕事に重ねたいタイプ。共感力と独自の発想で心に届くものを作ります。" },
+  INTP: { label: "探究する分析家", desc: "知的好奇心で構造を解き明かすのが得意。「なぜ」を突き詰める深い思考が武器。" },
+  ESTP: { label: "動く勝負師", desc: "まず動いて場を掴む行動力と度胸。変化の速い環境や交渉の最前線で生きます。" },
+  ESFP: { label: "場を明るくする人", desc: "空気を読んで人を巻き込む力は随一。現場で人と接する仕事で輝きます。" },
+  ENFP: { label: "情熱のアイデア屋", desc: "好奇心と人懐こさで可能性を見つける。ゼロイチの企画と巻き込みが得意。" },
+  ENTP: { label: "切り込む発想家", desc: "枠組みに疑問を投げ、議論で前に進めるタイプ。変革の場面で真価を発揮。" },
+  ESTJ: { label: "仕切る推進者", desc: "目標達成へ組織を動かす統率力。数字と計画で物事を確実に前へ進めます。" },
+  ESFJ: { label: "気配りの調整役", desc: "チームの和を保ちつつ実務を回す調整力。信頼関係を築くのが早いタイプ。" },
+  ENFJ: { label: "導く世話役", desc: "人の成長と一体感に喜びを感じるリーダー型。励まし、まとめる力に長けます。" },
+  ENTJ: { label: "果断な指揮官", desc: "大きな目標を掲げ合理的に率いる推進力。競争環境でこそ燃えるタイプです。" }
+};
+
+const INDUSTRIES = [
+  {
+    id: "it", kanji: "信", name: "IT・通信",
+    desc: "システム開発・ネットワーク・SIerなど、社会のインフラを支える技術領域。",
+    roles: ["システムエンジニア", "インフラエンジニア", "ITコンサルタント", "プリセールス", "プロジェクトマネージャー"],
+    w: { EI: -0.5, SN: -1, TF: 1.5, JP: 0.5 },
+    axes: {
+      EI: { s: "腰を据えてコードや設計と向き合う集中力は、IT開発の現場でそのまま強みになります。",
+            c: "開発業務は黙々と机に向かう時間が長め。社内SEやプリセールスなど人と接する役割を意識的に選ぶと満足度が上がります。" },
+      SN: { s: "要件の裏にある本質を掴む抽象化の力は、システム設計やアーキテクチャ検討で重宝されます。",
+            c: "目に見えない仕組みを扱う場面が多く、最初は概念的な議論に戸惑うかも。手を動かして覚えるインフラ・運用領域から入るのがおすすめ。" },
+      TF: { s: "障害対応や技術選定など、感情を挟まず論理で判断する場面が多いIT業界と好相性です。",
+            c: "正しさ優先のドライな議論が続くと疲れやすいかも。ユーザーに近いUXやカスタマーサクセス領域なら共感力が活きます。" },
+      JP: { s: "納期と品質を守る計画性は、大規模開発プロジェクトで信頼の源になります。",
+            c: "ウォーターフォール型の厳格な工程管理は窮屈に感じるかも。アジャイル開発を採用する企業を選ぶと働きやすいでしょう。" }
+    },
+    fs: "IT業界は職種の幅が広く、開発・企画・営業などタイプに合わせた入口を選べるのが魅力です。",
+    fc: "技術の移り変わりが速く、キャッチアップし続ける学習習慣は全タイプ共通で必須です。"
+  },
+  {
+    id: "web", kanji: "創", name: "Web・スタートアップ",
+    desc: "自社サービスの企画開発やベンチャーでの事業立ち上げなど、変化の速い成長環境。",
+    roles: ["Webエンジニア", "プロダクトマネージャー", "UI/UXデザイナー", "グロースマーケター", "事業開発"],
+    w: { EI: 0.5, SN: -1.5, TF: 0, JP: -1.5 },
+    axes: {
+      EI: { s: "少人数のスタートアップでは、職種を越えて発信し巻き込む力がそのまま事業の推進力になります。",
+            c: "全員が何でも屋になりがちな環境では露出や発信も求められます。技術や分析など専門性で貢献する立ち位置を早めに作りましょう。" },
+      SN: { s: "「まだ世にないもの」を構想する未来志向は、新規サービスづくりの中心的な資質です。",
+            c: "前例やマニュアルのない環境では、確実さを重んじるタイプほど不安になりがち。実績が出始めたミドルステージの企業だと安心感があります。" },
+      JP: { s: "方針が週単位で変わる環境でも柔軟に軌道修正できる適応力は、スタートアップの生存能力そのものです。",
+            c: "計画がひっくり返るのは日常茶飯事。「変化する前提で計画する」割り切りができないとストレスが溜まります。" }
+    },
+    fs: "裁量が大きく成長が速い環境なので、どのタイプでも主体性さえあれば活躍の場があります。",
+    fc: "制度や研修が未整備な会社が多く、整った環境で育ちたい人には負荷が大きい点は要注意。"
+  },
+  {
+    id: "consul", kanji: "策", name: "コンサルティング",
+    desc: "企業の経営課題を分析し、解決策を提案・実行支援する頭脳労働の代表格。",
+    roles: ["戦略コンサルタント", "ITコンサルタント", "業務改革コンサルタント", "リサーチャー"],
+    w: { EI: 1, SN: -1, TF: 1.5, JP: 0.5 },
+    axes: {
+      EI: { s: "クライアントの経営層と渡り合う折衝の多いコンサルでは、初対面でも臆さない社交性が大きな武器です。",
+            c: "常駐先での対人折衝が続くと消耗しやすいかも。リサーチやデータ分析で価値を出すスタイルを確立すると強いです。" },
+      SN: { s: "個別の事象から経営課題の構造を抜き出す抽象化能力は、コンサルタントの中核スキルです。",
+            c: "「仮説から先に作る」コンサル流の思考には最初戸惑うかも。現場データを正確に押さえる強みで補完できます。" },
+      TF: { s: "ファクトとロジックで結論を導く姿勢は、コンサルの評価基準そのもの。詰めの議論にも耐えられます。",
+            c: "「正しいが冷たい」提案は現場に受け入れられないもの。組織の感情面に配慮できる強みは、実行支援フェーズでこそ活きます。" },
+      JP: { s: "複数プロジェクトを期限内に着地させる段取り力は、多忙なコンサル業務の生命線です。",
+            c: "クライアントワークは締切が絶対。柔軟な発想は強みですが、スケジュール管理は仕組みでカバーしましょう。" }
+    },
+    fs: "論点整理・資料作成・折衝と求められるスキルが幅広く、どのタイプにも武器にできる領域があります。",
+    fc: "労働時間が長くプレッシャーも強い業界。体力とセルフマネジメントはタイプを問わず必須です。"
+  },
+  {
+    id: "finance", kanji: "金", name: "金融",
+    desc: "銀行・証券・保険など、正確さと信頼が価値になる社会のお金のインフラ。",
+    roles: ["リテール営業", "法人営業", "アナリスト", "クオンツ", "資産運用"],
+    w: { EI: 0.5, SN: 1, TF: 1, JP: 1.5 },
+    axes: {
+      EI: { s: "金融商品は「人から買う」もの。顧客と関係を築く社交性はリテール・法人営業で直結する強みです。",
+            c: "営業ノルマのある職種は消耗しやすいかも。アナリストや運用、リスク管理など専門職コースが狙い目です。" },
+      SN: { s: "1円のずれも許されない金融実務では、細部を正確に扱う現実的な感覚が信頼の土台になります。",
+            c: "規定どおりの正確な事務が続く場面では退屈を感じやすいかも。市場分析や新規事業企画など構想力を活かせる部署を目指しましょう。" },
+      TF: { s: "数字とリスクを冷静に天秤にかける判断力は、与信や運用の意思決定で不可欠です。",
+            c: "損得の判断を割り切れず抱え込みやすいかも。顧客の人生に寄り添うFP・保険領域なら共感力が武器になります。" },
+      JP: { s: "コンプライアンスと手続きを確実に守る規律性は、金融機関がもっとも重視する資質です。",
+            c: "規則と前例が支配する世界なので、自由度の低さは覚悟が必要。フィンテック系なら柔軟な社風も見つかります。" }
+    },
+    fs: "安定した経営基盤と充実した研修制度があり、じっくりキャリアを築きたい人に向いた業界です。",
+    fc: "業界再編やデジタル化で従来の業務が変わりつつあり、変化への備えはどのタイプにも求められます。"
+  },
+  {
+    id: "maker", kanji: "製", name: "メーカー",
+    desc: "自動車・電機・食品など、ものづくりで価値を生む日本の基幹産業。",
+    roles: ["研究開発", "生産技術", "品質管理", "商品企画", "海外営業"],
+    w: { EI: -0.5, SN: 1, TF: 0.5, JP: 1 },
+    axes: {
+      EI: { s: "一つの製品や技術と長く向き合う粘り強さは、メーカーの研究開発・設計職と好相性です。",
+            c: "開発現場は地道な検証の積み重ねが中心。営業や海外駐在など、人と動く職種を選ぶと持ち味が活きます。" },
+      SN: { s: "現場・現物・現実を重んじる「三現主義」の文化と、事実を丁寧に見るあなたの感覚はぴったりです。",
+            c: "改善の積み重ねを重視する文化では、大きな構想が「まず前例は?」と返されることも。新規事業部門や商品企画が活躍の場です。" },
+      TF: { s: "品質基準やコスト制約の中で最適解を探る論理的な調整力は、設計・生産技術で日々活きます。",
+            c: "スペックとコストの議論が中心の環境では感性は後回しになりがち。デザイン部門や食品・化粧品など感性が価値になる分野も検討を。" },
+      JP: { s: "量産立ち上げや品質管理など、決めた工程を守り抜く計画性がものづくりの信頼を支えます。",
+            c: "工程とルールが細かく決まった環境は窮屈に感じるかも。試作や研究など、探索の自由度が高い部署が合います。" }
+    },
+    fs: "技術・企画・営業・生産と職種の裾野が広く、適性に合わせた配属の可能性が幅広い業界です。",
+    fc: "配属先によって働き方が大きく変わるため、職種別採用かどうかは必ず確認しましょう。"
+  },
+  {
+    id: "trading", kanji: "商", name: "総合商社",
+    desc: "資源から食品まで世界中のビジネスを動かす、人とタフさが武器の業界。",
+    roles: ["事業投資", "トレーディング", "事業開発", "海外駐在員"],
+    w: { EI: 2, SN: 0, TF: 0.5, JP: -0.5 },
+    axes: {
+      EI: { s: "初対面の相手と一気に距離を詰める人間力は、世界中でビジネスを作る商社パーソンの最重要資質です。",
+            c: "飲み会や接待も含めた濃密な人間関係が商社文化の中心。内向型には消耗が大きく、財務や審査など専門職での貢献が現実的です。" },
+      TF: { s: "事業投資の採算を冷静に見極める数字感覚は、商社の投資ビジネスで必須の武器です。",
+            c: "巨額の損得を割り切る判断が日常的に求められます。人を大切にする姿勢は人材育成や組織運営で活かしましょう。" },
+      JP: { s: "市況も相手国の事情も日々変わる商社ビジネスでは、臨機応変に立ち回れる柔軟さが強みになります。",
+            c: "計画どおりに進まないのが商社の日常。予定変更を楽しむくらいの構えが必要です。" }
+    },
+    fs: "扱う商材も国も幅広く、キャリアの選択肢の多さは全業界でも屈指です。",
+    fc: "海外駐在や転勤が前提のキャリアになりやすく、ライフプランとの両立は早めに考えておきましょう。"
+  },
+  {
+    id: "media", kanji: "伝", name: "広告・マスコミ",
+    desc: "広告・出版・放送・Webメディアなど、言葉と表現で人の心を動かす業界。",
+    roles: ["アカウント営業", "企画・プランナー", "コピーライター", "編集者", "記者"],
+    w: { EI: 1, SN: -1.5, TF: -0.5, JP: -1 },
+    axes: {
+      EI: { s: "クライアント・制作会社・媒体社を巻き込むこの業界では、人脈づくりのフットワークが仕事の幅を決めます。",
+            c: "関係者との調整や会食が多い業界ですが、コピーや編集など「一人で深く作る」職種なら内向型の集中力が武器になります。" },
+      SN: { s: "まだ言葉になっていない気分を捉えて表現に変える発想力は、企画・クリエイティブの中核です。",
+            c: "「面白いか」という曖昧な基準で判断される場面が多め。データに基づくデジタル広告運用なら現実的な感覚が強みになります。" },
+      TF: { s: "人の感情の機微への感度は、心を動かすコピーや企画の源泉です。",
+            c: "効果測定が曖昧な世界に見えるかも。デジタルマーケティングなら数字で語れる領域が広がっています。" },
+      JP: { s: "締切直前の変更やトレンドの急変にも乗りこなす柔軟さは、この業界のスピード感と相性抜群です。",
+            c: "進行が読めない案件が多くスケジュールは乱れがち。制作進行・アカウント管理なら、あなたの計画性が逆に希少価値になります。" }
+    },
+    fs: "営業・企画・制作・進行管理と役割が分かれており、タイプに応じた持ち場を見つけやすい業界です。",
+    fc: "華やかに見えて労働時間は長め。体力面の覚悟はどのタイプにも必要です。"
+  },
+  {
+    id: "medical", kanji: "療", name: "医療・福祉",
+    desc: "医療機関・介護・製薬など、人の命と生活を直接支える使命感の強い領域。",
+    roles: ["病院運営・医療事務", "MR(製薬営業)", "臨床開発", "介護・福祉職", "医療機器営業"],
+    w: { EI: 0, SN: 1, TF: -1.5, JP: 0.5 },
+    axes: {
+      SN: { s: "患者さんの小さな変化を見逃さない観察力と、手順を正確に守る堅実さは医療現場の安全を支えます。",
+            c: "マニュアルと手順の遵守が絶対の現場では、創意工夫の余地が少なく感じるかも。臨床開発や医療テックなど変革側の職種も視野に。" },
+      TF: { s: "不安を抱える患者さんや家族に寄り添える共感力は、この業界でもっとも尊ばれる資質です。",
+            c: "効率より寄り添いが優先される場面に割り切れなさを感じるかも。病院経営や医療データ分析なら合理性が武器になります。" },
+      JP: { s: "服薬管理や記録など、決められたことを確実に続ける几帳面さが患者さんの安心につながります。",
+            c: "シフトと手順に縛られる働き方は窮屈に感じるかも。訪問系や在宅医療なら裁量の余地が比較的あります。" }
+    },
+    fs: "高齢化で需要が伸び続ける、社会的意義と安定性を両立できる業界です。",
+    fc: "心身の負荷が大きい仕事も多く、セルフケアの習慣はタイプを問わず大切です。"
+  },
+  {
+    id: "public", kanji: "公", name: "公務員・行政",
+    desc: "国や自治体で制度と暮らしを支える、公共性と安定性の高いキャリア。",
+    roles: ["行政事務", "技術職(土木・建築)", "国家総合職", "警察・消防", "独立行政法人職員"],
+    w: { EI: -0.5, SN: 1.5, TF: 0, JP: 2 },
+    axes: {
+      EI: { s: "文書と制度に丁寧に向き合う落ち着きは、行政実務の正確さに直結します。",
+            c: "デスクワークと文書仕事が中心ですが、窓口・広報・地域振興など住民と直接関わる部署なら社交性が活きます。" },
+      SN: { s: "法令と前例に忠実な正確な事務処理は、公務の信頼性の根幹。あなたの堅実さがもっとも評価される環境です。",
+            c: "前例踏襲の文化では新しい発想が通りにくいことも。政策企画やDX推進部門なら構想力を発揮できます。" },
+      JP: { s: "規則と手続きを重んじる行政組織の文化と、計画的に物事を進めるあなたのスタイルは非常に相性が良いです。",
+            c: "決裁と規則の世界は自由度が低め。柔軟さが持ち味の人は、現場対応の多い部署や小規模自治体の方が動きやすいでしょう。" }
+    },
+    fs: "雇用の安定と福利厚生は全業界トップクラス。腰を据えて社会に貢献したい人に向いています。",
+    fc: "異動で仕事内容が数年ごとに大きく変わるため、専門性を深めたい人は職種選びが重要です。"
+  },
+  {
+    id: "edu", kanji: "育", name: "教育・人材",
+    desc: "学校・塾・人材サービスなど、人の成長とキャリアに関わる仕事。",
+    roles: ["教員・講師", "キャリアアドバイザー", "人材コーディネーター", "研修企画", "教育系企画職"],
+    w: { EI: 1, SN: 0, TF: -1.5, JP: 0.5 },
+    axes: {
+      EI: { s: "生徒や求職者と日々向き合うこの業界では、人と話すこと自体を楽しめるエネルギーが何よりの資産です。",
+            c: "面談や授業など人と接する時間が長い仕事ですが、教材開発や学習データ分析など裏方で支える職種も豊富です。" },
+      TF: { s: "相手の可能性を信じて寄り添う姿勢は、教育・人材業界の存在意義そのもの。あなたの共感力が直接成果になります。",
+            c: "成果が数字で見えにくい世界に感じるかも。人材ビジネスの営業やHRテックなら、論理と数字で価値を出せます。" },
+      JP: { s: "カリキュラムや採用計画を着実に運用する管理能力は、教育の質を安定させる土台です。",
+            c: "年間計画に沿って動く場面が多い一方、生徒対応は臨機応変さの連続。現場では柔軟さも十分活きます。" }
+    },
+    fs: "人の節目に関われるやりがいの大きさは、この業界ならではの魅力です。",
+    fc: "感情労働の側面が強く、相手に入れ込みすぎない線引きはどのタイプにも必要です。"
+  },
+  {
+    id: "estate", kanji: "築", name: "不動産・建設",
+    desc: "街と建物をつくり動かす、スケールの大きな現場主義の業界。",
+    roles: ["用地仕入・開発", "施工管理", "不動産営業", "設計", "プロパティマネジメント"],
+    w: { EI: 1, SN: 1, TF: 0.5, JP: 0.5 },
+    axes: {
+      EI: { s: "地権者・職人・行政と関係者が多いこの業界では、誰とでも渡り合える対人タフネスが成果に直結します。",
+            c: "営業や現場調整は対人折衝の連続。設計・積算・プロパティマネジメント系の職種なら、じっくり型の強みが活きます。" },
+      SN: { s: "図面と現場のずれに気づく現実感覚は、施工品質と安全を守る要です。",
+            c: "日々の現場管理は地道な確認作業の連続。都市開発や再開発企画なら、大きな構想力を発揮できます。" },
+      TF: { s: "工期・コスト・品質のトレードオフを冷静にさばく判断力は、現場責任者に不可欠です。",
+            c: "利害がぶつかる交渉ごとが多い業界。住まいへの想いに寄り添う姿勢は、仲介や注文住宅営業で強みになります。" },
+      JP: { s: "多くの業者が絡む工程を計画どおり進める段取り力は、この業界の中心的スキルです。",
+            c: "天候や資材で計画が崩れるのは日常。硬直的にならず組み直せる人が現場では重宝されます。" }
+    },
+    fs: "成果物が形に残る達成感の大きさは、この業界を選ぶ最大の理由になります。",
+    fc: "現場は朝が早く体力勝負の面も。働き方は会社・職種で大きく違うので要確認です。"
+  },
+  {
+    id: "retail", kanji: "客", name: "小売・サービス",
+    desc: "店舗・外食・ホテル・エンタメなど、顧客体験がそのまま価値になる業界。",
+    roles: ["店舗運営・店長", "スーパーバイザー", "バイヤー", "販売企画", "ホテル・ブライダル"],
+    w: { EI: 1, SN: 0.5, TF: -1, JP: -0.5 },
+    axes: {
+      EI: { s: "お客様との一期一会を楽しめる明るさは、サービス業の最前線でそのまま売上になります。",
+            c: "接客の連続は内向型には消耗が大きめ。バイヤーや販売企画、EC運営など本部職を目標にキャリアを設計しましょう。" },
+      SN: { s: "売場の乱れやお客様の様子など、現場の小さな変化に気づく観察力が店舗の質を決めます。",
+            c: "日々のオペレーション改善が中心の現場では、大きな構想は温めにくいかも。新業態開発やDX部門が狙い目です。" },
+      TF: { s: "お客様の気持ちを先回りするホスピタリティは、リピーターを生む最大の武器です。",
+            c: "理屈より気持ちが優先される場面が多め。数値管理が強みなら、スーパーバイザーや経営企画で差がつきます。" },
+      JP: { s: "混雑やトラブルへの臨機応変な対応力は、現場を預かる店長職の必須スキルです。",
+            c: "予測不能な現場対応が日常なので、計画どおりに進まないことへの耐性を養いましょう。" }
+    },
+    fs: "成果がお客様の反応としてすぐ返ってくる、手応えのわかりやすい業界です。",
+    fc: "土日勤務やシフト制が基本のため、生活リズムとの相性は事前に確認を。"
+  }
+];
+
+// タイプ×業界の定性コメント(強み/ギャップ)。スコアは計算しない。
+function typeComments(code, ind) {
+  const strengths = [], cautions = [];
+  AXES.forEach((a, i) => {
+    const w = ind.w[a.key] || 0;
+    if (Math.abs(w) < 0.5 || !ind.axes[a.key]) return;
+    const v = code[i] === a.pos ? 1 : -1;
+    if (v * w > 0) strengths.push(ind.axes[a.key].s);
+    else cautions.push(ind.axes[a.key].c);
+  });
+  if (strengths.length === 0) strengths.push(ind.fs);
+  if (cautions.length === 0) cautions.push(ind.fc);
+  return { strengths, cautions };
+}
+
+// デモモード用: seed.py と同じロジックで擬似分布を作る(API未設定時のみ使用)
+function demoStats(code) {
+  const T = 15, TOTAL = 30;
+  const scores = INDUSTRIES.map((ind) => {
+    let s = 50;
+    AXES.forEach((a, i) => {
+      const v = code[i] === a.pos ? 1 : -1;
+      s += v * (ind.w[a.key] || 0) * 10;
+    });
+    return { id: ind.id, s };
+  });
+  const maxS = Math.max(...scores.map((x) => x.s));
+  const exps = scores.map((x) => ({ id: x.id, e: Math.exp((x.s - maxS) / T) }));
+  const denom = exps.reduce((acc, x) => acc + x.e, 0);
+  const items = exps.map((x) => ({
+    industry: x.id,
+    count: 1 + Math.round((TOTAL - INDUSTRIES.length) * x.e / denom)
+  }));
+  items.sort((a, b) => b.count - a.count);
+  return { type: code, total: items.reduce((acc, i) => acc + i.count, 0), items };
+}
+/*__END_DATA_AND_LOGIC__*/
+
+// ---------- state & rendering ----------
+const VOTE_KEY = "mbtiCareerVote";
+const state = {
+  poles: { EI: "I", SN: "N", TF: "T", JP: "J" },
+  detailIndustry: null,   // グラフでクリックした業界(詳細表示)
+  voteChoice: null,       // 投稿フォームで選択中の業界
+  voting: false,
+  voteError: null,
+  stats: null,            // 現在タイプの取得済み分布
+  loading: false,
+  error: null
+};
+
+const $ = (id) => document.getElementById(id);
+const IND = (id) => INDUSTRIES.find((i) => i.id === id);
+const isDemo = () => API_URL === "";
+
+function currentType() {
+  return AXES.map((a) => state.poles[a.key]).join("");
+}
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function savedVote() {
+  try {
+    const v = JSON.parse(localStorage.getItem(VOTE_KEY) || "null");
+    if (!v || !TYPES[v.type] || !IND(v.industry)) return null;
+    if (v.demo && !isDemo()) return null; // デモ中の投稿は本番では無効
+    return v;
+  } catch { return null; }
+}
+
+// ---------- data fetching ----------
+let fetchSeq = 0;
+async function loadStats() {
+  const code = currentType();
+  if (isDemo()) {
+    state.stats = demoStats(code);
+    state.loading = false;
+    state.error = null;
+    renderChart();
+    return;
+  }
+  const seq = ++fetchSeq;
+  state.loading = true;
+  state.error = null;
+  renderChart();
+  try {
+    const res = await fetch(`${API_URL}/stats?type=${code}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (seq !== fetchSeq) return; // 古いレスポンスは捨てる
+    state.stats = data;
+    state.loading = false;
+  } catch (e) {
+    if (seq !== fetchSeq) return;
+    state.loading = false;
+    state.error = "データを取得できませんでした。通信環境を確認してください。";
+  }
+  renderChart();
+}
+
+async function submitVote() {
+  const code = currentType();
+  const industry = state.voteChoice;
+  if (!industry || savedVote()) return;
+  state.voting = true;
+  state.voteError = null;
+  renderVoteArea();
+  try {
+    if (isDemo()) {
+      await new Promise((r) => setTimeout(r, 300));
+    } else {
+      const res = await fetch(`${API_URL}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: code, industry })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    }
+    localStorage.setItem(VOTE_KEY, JSON.stringify({
+      type: code, industry, at: new Date().toISOString(), demo: isDemo()
+    }));
+    state.voting = false;
+    renderVoteArea();
+    loadStats(); // 自分の1票を反映
+  } catch (e) {
+    state.voting = false;
+    state.voteError = "投稿に失敗しました。時間をおいて再度お試しください。";
+    renderVoteArea();
+  }
+}
+
+// ---------- rendering ----------
+function renderToggles() {
+  $("axisToggles").innerHTML = AXES.map((a) => `
+    <div class="axis-row">
+      <div class="axis-name">${a.name}</div>
+      <div class="seg" role="group" aria-label="${a.name}">
+        <button type="button" data-axis="${a.key}" data-pole="${a.pos}" aria-pressed="${state.poles[a.key] === a.pos}">
+          <span class="ltr">${a.pos}</span><span>${a.posLabel}</span>
+        </button>
+        <button type="button" data-axis="${a.key}" data-pole="${a.neg}" aria-pressed="${state.poles[a.key] === a.neg}">
+          <span class="ltr">${a.neg}</span><span>${a.negLabel}</span>
+        </button>
+      </div>
+    </div>`).join("");
+  $("axisToggles").querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.poles[btn.dataset.axis] = btn.dataset.pole;
+      renderToggles();
+      renderTypeNow();
+      renderVoteArea();
+      renderDetail();
+      loadStats();
+    });
+  });
+}
+
+function renderTypeNow() {
+  const code = currentType();
+  const t = TYPES[code];
+  $("typeCode").textContent = code;
+  $("typeLabel").textContent = t.label;
+  $("typeDesc").textContent = t.desc;
+}
+
+function renderVoteArea() {
+  const area = $("voteArea");
+  const done = savedVote();
+  if (done) {
+    const ind = IND(done.industry);
+    area.innerHTML = `
+      <div class="vote-done">
+        <b>✓ 投稿ありがとうございました</b><br>
+        ${esc(done.type)} × ${esc(ind.name)} として集計されています。${done.demo ? "(デモモードのため保存されていません)" : ""}
+      </div>`;
+    return;
+  }
+  const code = currentType();
+  area.innerHTML = `
+    <div class="ind-grid">${INDUSTRIES.map((ind) => `
+      <button type="button" class="ind-card" data-id="${ind.id}" aria-pressed="${state.voteChoice === ind.id}">
+        <span class="tile" aria-hidden="true">${ind.kanji}</span>
+        <span class="ind-name">${esc(ind.name)}</span>
+      </button>`).join("")}
+    </div>
+    <button type="button" class="vote-btn" id="voteBtn" ${state.voteChoice && !state.voting ? "" : "disabled"}>
+      ${state.voting ? "送信中…" : (state.voteChoice ? `${code} × ${esc(IND(state.voteChoice).name)} で投稿する` : "業界を選んで投稿する")}
+    </button>
+    ${state.voteError ? `<p class="vote-error">${esc(state.voteError)}</p>` : ""}`;
+  area.querySelectorAll(".ind-card").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.voteChoice = btn.dataset.id;
+      state.detailIndustry = btn.dataset.id; // 選んだ業界の詳細も見せる
+      renderVoteArea();
+      renderChart();
+      renderDetail();
+    });
+  });
+  const voteBtn = $("voteBtn");
+  if (voteBtn) voteBtn.addEventListener("click", submitVote);
+}
+
+function renderChart() {
+  const panel = $("chartPanel");
+  const code = currentType();
+  const t = TYPES[code];
+  const head = `
+    <div class="panel-head">
+      <h2>${code}(${esc(t.label)})の人の志望業界</h2>
+      ${state.stats && !state.loading && !state.error ? `<span class="n-badge">n=${state.stats.total}票</span>` : ""}
+      ${isDemo() ? `<span class="demo-badge">デモデータ(API未接続)</span>` : ""}
+    </div>
+    <p class="panel-sub">同じMBTIタイプの人の投稿から集計しています。業界名をクリックすると詳細が見られます。</p>`;
+
+  if (state.loading) {
+    panel.innerHTML = head + `<div class="state-box"><div class="spinner" aria-hidden="true"></div>読み込み中…</div>`;
+    return;
+  }
+  if (state.error) {
+    panel.innerHTML = head + `
+      <div class="state-box">
+        ${esc(state.error)}<br>
+        <button type="button" class="retry-btn" id="retryBtn">再試行</button>
+      </div>`;
+    $("retryBtn").addEventListener("click", loadStats);
+    return;
+  }
+  if (!state.stats) { panel.innerHTML = head; return; }
+
+  const total = state.stats.total || 1;
+  const max = Math.max(...state.stats.items.map((i) => i.count), 1);
+  const rows = state.stats.items.map((item) => {
+    const ind = IND(item.industry);
+    if (!ind) return "";
+    const pct = Math.round(100 * item.count / total);
+    return `
+      <button type="button" class="dist-row" data-id="${ind.id}"
+        data-current="${state.detailIndustry === ind.id}"
+        title="${esc(ind.name)}: ${item.count}票 / ${total}票中 (${pct}%)">
+        <span class="dist-name"><span class="tile" aria-hidden="true">${ind.kanji}</span><span>${esc(ind.name)}</span></span>
+        <span class="dist-bar"><i style="width:${(100 * item.count / max).toFixed(1)}%"></i></span>
+        <span class="dist-val">${pct}% <small>(${item.count})</small></span>
+      </button>`;
+  }).join("");
+  panel.innerHTML = head + `<div class="dist">${rows}</div>
+    <p class="chart-note">割合はこのタイプの総投稿数に対するもの。投稿すると即座に反映されます。</p>`;
+  panel.querySelectorAll(".dist-row").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.detailIndustry = btn.dataset.id;
+      renderChart();
+      renderDetail();
+    });
+  });
+}
+
+function renderDetail() {
+  const panel = $("detailPanel");
+  if (!state.detailIndustry) {
+    panel.innerHTML = `<div class="state-box">グラフの業界名をクリックすると、業界の解説と<br>あなたのタイプ向けのコメントが表示されます。</div>`;
+    return;
+  }
+  const ind = IND(state.detailIndustry);
+  const code = currentType();
+  const { strengths, cautions } = typeComments(code, ind);
+  panel.innerHTML = `
+    <div class="detail-head">
+      <span class="tile" aria-hidden="true">${ind.kanji}</span>
+      <div>
+        <h3>${esc(ind.name)}</h3>
+        <p>${code}(${esc(TYPES[code].label)})から見た業界コメント</p>
+      </div>
+    </div>
+    <p class="detail-desc">${esc(ind.desc)}</p>
+    <div class="sc-grid">
+      <div>
+        <p class="sec-title">この業界で活きる強み</p>
+        <ul class="sc-list good">${strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+      </div>
+      <div>
+        <p class="sec-title">意識したいギャップ</p>
+        <ul class="sc-list warn">${cautions.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <hr class="divider">
+    <p class="sec-title">代表的な職種</p>
+    <div class="role-chips">${ind.roles.map((r) => `<span>${esc(r)}</span>`).join("")}</div>`;
+}
+
+renderToggles();
+renderTypeNow();
+renderVoteArea();
+renderDetail();
+loadStats();
+</script>
+</body>
+</html>
