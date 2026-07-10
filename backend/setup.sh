@@ -26,6 +26,20 @@ else
   aws dynamodb wait table-exists --table-name "$TABLE" --region "$REGION"
 fi
 
+echo "== 1.5/5 GSI (by-industry) 作成: 業界→MBTI分布の逆引き用 =="
+GSI_COUNT=$(aws dynamodb describe-table --table-name "$TABLE" --region "$REGION" \
+  --query "length(Table.GlobalSecondaryIndexes[?IndexName=='by-industry'] || \`[]\`)" --output text)
+if [ "$GSI_COUNT" != "0" ]; then
+  echo "   (作成済みのためスキップ)"
+else
+  aws dynamodb update-table \
+    --table-name "$TABLE" \
+    --attribute-definitions AttributeName=industry,AttributeType=S AttributeName=mbti,AttributeType=S \
+    --global-secondary-index-updates '[{"Create":{"IndexName":"by-industry","KeySchema":[{"AttributeName":"industry","KeyType":"HASH"},{"AttributeName":"mbti","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":5,"WriteCapacityUnits":5}}}]' \
+    --region "$REGION" >/dev/null
+  echo "   (バックフィル完了まで数分かかることがあります)"
+fi
+
 echo "== 2/5 IAM ロール作成 =="
 if aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
   echo "   (作成済みのためスキップ)"
@@ -54,7 +68,10 @@ EOF
     {
       "Effect": "Allow",
       "Action": ["dynamodb:Query", "dynamodb:UpdateItem"],
-      "Resource": "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE}"
+      "Resource": [
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE}",
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE}/index/*"
+      ]
     }
   ]
 }

@@ -7,6 +7,7 @@ from boto3.dynamodb.conditions import Key
 
 REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 TABLE_NAME = os.environ.get("TABLE_NAME", "mbti-industry-votes")
+INDEX_NAME = os.environ.get("INDEX_NAME", "by-industry")
 
 TYPE_CODES = {a + b + c + d for a in "EI" for b in "SN" for c in "TF" for d in "JP"}
 INDUSTRY_IDS = {
@@ -26,18 +27,33 @@ def _response(status, body):
     }
 
 
+def _count(item):
+    return int(item.get("seed", 0)) + int(item.get("votes", 0))
+
+
 def _get_stats(mbti):
     resp = table.query(KeyConditionExpression=Key("mbti").eq(mbti))
     items = [
-        {
-            "industry": item["industry"],
-            "count": int(item.get("seed", 0)) + int(item.get("votes", 0)),
-        }
+        {"industry": item["industry"], "count": _count(item)}
         for item in resp.get("Items", [])
     ]
     items.sort(key=lambda x: x["count"], reverse=True)
     total = sum(i["count"] for i in items)
     return _response(200, {"type": mbti, "total": total, "items": items})
+
+
+def _get_industry(industry):
+    resp = table.query(
+        IndexName=INDEX_NAME,
+        KeyConditionExpression=Key("industry").eq(industry),
+    )
+    items = [
+        {"type": item["mbti"], "count": _count(item)}
+        for item in resp.get("Items", [])
+    ]
+    items.sort(key=lambda x: x["count"], reverse=True)
+    total = sum(i["count"] for i in items)
+    return _response(200, {"industry": industry, "total": total, "items": items})
 
 
 def _post_vote(raw_body, is_base64):
@@ -52,29 +68,47 @@ def _post_vote(raw_body, is_base64):
         return _response(400, {"error": "invalid json"})
 
     mbti = str(body.get("type", "")).upper()
-    industry = str(body.get("industry", ""))
-    if mbti not in TYPE_CODES or industry not in INDUSTRY_IDS:
-        return _response(400, {"error": "invalid type or industry"})
+    industries = body.get("industries")
+    if industries is None and body.get("industry"):
+        industries = [body.get("industry")]  # 旧クライアント互換
+    if not isinstance(industries, list):
+        return _response(400, {"error": "industries must be a list"})
+    industries = [str(i) for i in industries]
 
-    table.update_item(
-        Key={"mbti": mbti, "industry": industry},
-        UpdateExpression="ADD votes :one",
-        ExpressionAttributeValues={":one": 1},
-    )
-    return _response(200, {"ok": True})
+    if (
+        mbti not in TYPE_CODES
+        or not industries
+        or len(industries) != len(set(industries))
+        or any(i not in INDUSTRY_IDS for i in industries)
+    ):
+        return _response(400, {"error": "invalid type or industries"})
+
+    for industry in industries:
+        table.update_item(
+            Key={"mbti": mbti, "industry": industry},
+            UpdateExpression="ADD votes :one",
+            ExpressionAttributeValues={":one": 1},
+        )
+    return _response(200, {"ok": True, "voted": len(industries)})
 
 
 def lambda_handler(event, context):
     http = event.get("requestContext", {}).get("http", {})
     method = http.get("method", "")
     path = event.get("rawPath", "")
+    qs = event.get("queryStringParameters") or {}
 
     if method == "GET" and path == "/stats":
-        qs = event.get("queryStringParameters") or {}
         mbti = (qs.get("type") or "").upper()
         if mbti not in TYPE_CODES:
             return _response(400, {"error": "invalid type"})
         return _get_stats(mbti)
+
+    if method == "GET" and path == "/industry":
+        industry = qs.get("id") or ""
+        if industry not in INDUSTRY_IDS:
+            return _response(400, {"error": "invalid industry"})
+        return _get_industry(industry)
 
     if method == "POST" and path == "/vote":
         return _post_vote(event.get("body"), event.get("isBase64Encoded", False))
