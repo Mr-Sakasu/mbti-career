@@ -253,6 +253,31 @@
   }
   .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
+  /* ---------- industry MBTI distribution ---------- */
+  .you-line { font-size: 12.5px; background: var(--chip); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; line-height: 1.7; }
+  .you-line b { color: var(--accent); }
+  .mbti-dist { display: flex; flex-direction: column; gap: 2px; }
+  .m-row {
+    display: grid; grid-template-columns: 104px 1fr 78px;
+    align-items: center; gap: 10px; padding: 3px 8px;
+    border-radius: 8px; border: 1px solid transparent;
+  }
+  .m-row .m-code { font-size: 12px; font-weight: 800; letter-spacing: 0.03em; white-space: nowrap; }
+  .m-row[data-you="true"] { background: var(--chip); border-color: var(--accent); }
+  .m-bar { height: 10px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .m-bar i {
+    display: block; height: 100%; border-radius: 4px; background: var(--pos);
+    min-width: 2px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .m-val { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .m-val small { color: var(--muted); font-weight: 600; }
+  .you-chip {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink);
+    border-radius: 999px; padding: 0 7px; margin-left: 6px; vertical-align: 1px;
+  }
+  .mini-state { color: var(--muted); font-size: 12.5px; padding: 10px 0; }
+
   footer.note {
     margin-top: 26px; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.8;
   }
@@ -287,7 +312,7 @@
       </div>
       <div>
         <div class="step-label"><span class="step-no">STEP 2</span><span class="step-title">あなたの志望業界を投稿</span></div>
-        <p class="step-note">あなたの回答が「同じタイプの人の傾向」のデータになります(1人1回)。</p>
+        <p class="step-note">あなたの回答が「同じタイプの人の傾向」のデータになります(1人1回・複数選択可)。</p>
         <div id="voteArea"></div>
       </div>
     </section>
@@ -581,6 +606,16 @@ function demoStats(code) {
   items.sort((a, b) => b.count - a.count);
   return { type: code, total: items.reduce((acc, i) => acc + i.count, 0), items };
 }
+
+// デモモード用: 業界→MBTI分布(全16タイプのdemoStatsから逆引き)
+function demoIndustryStats(industryId) {
+  const items = Object.keys(TYPES).map((code) => {
+    const found = demoStats(code).items.find((i) => i.industry === industryId);
+    return { type: code, count: found ? found.count : 0 };
+  });
+  items.sort((a, b) => b.count - a.count);
+  return { industry: industryId, total: items.reduce((acc, i) => acc + i.count, 0), items };
+}
 /*__END_DATA_AND_LOGIC__*/
 
 // ---------- state & rendering ----------
@@ -588,12 +623,15 @@ const VOTE_KEY = "mbtiCareerVote";
 const state = {
   poles: { EI: "I", SN: "N", TF: "T", JP: "J" },
   detailIndustry: null,   // グラフでクリックした業界(詳細表示)
-  voteChoice: null,       // 投稿フォームで選択中の業界
+  voteChoices: [],        // 投稿フォームで選択中の業界(複数可)
   voting: false,
   voteError: null,
   stats: null,            // 現在タイプの取得済み分布
   loading: false,
-  error: null
+  error: null,
+  industryStats: null,    // 詳細表示中の業界のMBTI分布
+  industryLoading: false,
+  industryError: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -611,9 +649,11 @@ function esc(s) {
 function savedVote() {
   try {
     const v = JSON.parse(localStorage.getItem(VOTE_KEY) || "null");
-    if (!v || !TYPES[v.type] || !IND(v.industry)) return null;
+    if (!v || !TYPES[v.type]) return null;
+    const industries = v.industries || (v.industry ? [v.industry] : []); // 旧形式互換
+    if (industries.length === 0 || industries.some((i) => !IND(i))) return null;
     if (v.demo && !isDemo()) return null; // デモ中の投稿は本番では無効
-    return v;
+    return { ...v, industries };
   } catch { return null; }
 }
 
@@ -649,8 +689,8 @@ async function loadStats() {
 
 async function submitVote() {
   const code = currentType();
-  const industry = state.voteChoice;
-  if (!industry || savedVote()) return;
+  const industries = state.voteChoices;
+  if (industries.length === 0 || savedVote()) return;
   state.voting = true;
   state.voteError = null;
   renderVoteArea();
@@ -661,21 +701,53 @@ async function submitVote() {
       const res = await fetch(`${API_URL}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: code, industry })
+        body: JSON.stringify({ type: code, industries })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     }
     localStorage.setItem(VOTE_KEY, JSON.stringify({
-      type: code, industry, at: new Date().toISOString(), demo: isDemo()
+      type: code, industries, at: new Date().toISOString(), demo: isDemo()
     }));
     state.voting = false;
     renderVoteArea();
-    loadStats(); // 自分の1票を反映
+    loadStats();     // 自分の票をタイプ別グラフに反映
+    loadIndustry();  // 表示中の業界のMBTI分布にも反映
   } catch (e) {
     state.voting = false;
     state.voteError = "投稿に失敗しました。時間をおいて再度お試しください。";
     renderVoteArea();
   }
+}
+
+let industrySeq = 0;
+async function loadIndustry() {
+  const id = state.detailIndustry;
+  if (!id) return;
+  if (isDemo()) {
+    state.industryStats = demoIndustryStats(id);
+    state.industryLoading = false;
+    state.industryError = null;
+    renderDetail();
+    return;
+  }
+  const seq = ++industrySeq;
+  state.industryStats = null;
+  state.industryLoading = true;
+  state.industryError = null;
+  renderDetail();
+  try {
+    const res = await fetch(`${API_URL}/industry?id=${id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (seq !== industrySeq) return;
+    state.industryStats = data;
+    state.industryLoading = false;
+  } catch (e) {
+    if (seq !== industrySeq) return;
+    state.industryLoading = false;
+    state.industryError = "MBTI分布を取得できませんでした。";
+  }
+  renderDetail();
 }
 
 // ---------- rendering ----------
@@ -716,30 +788,44 @@ function renderVoteArea() {
   const area = $("voteArea");
   const done = savedVote();
   if (done) {
-    const ind = IND(done.industry);
+    const names = done.industries.map((id) => IND(id).name).join("、");
     area.innerHTML = `
       <div class="vote-done">
         <b>✓ 投稿ありがとうございました</b><br>
-        ${esc(done.type)} × ${esc(ind.name)} として集計されています。${done.demo ? "(デモモードのため保存されていません)" : ""}
+        ${esc(done.type)} × ${esc(names)} として集計されています。${done.demo ? "(デモモードのため保存されていません)" : ""}
       </div>`;
     return;
   }
   const code = currentType();
+  const n = state.voteChoices.length;
+  const btnLabel = state.voting ? "送信中…"
+    : n === 0 ? "業界を選んで投稿する(複数選択可)"
+    : n === 1 ? `${code} × ${esc(IND(state.voteChoices[0]).name)} で投稿する`
+    : `${code} × ${n}業界で投稿する`;
   area.innerHTML = `
     <div class="ind-grid">${INDUSTRIES.map((ind) => `
-      <button type="button" class="ind-card" data-id="${ind.id}" aria-pressed="${state.voteChoice === ind.id}">
+      <button type="button" class="ind-card" data-id="${ind.id}" aria-pressed="${state.voteChoices.includes(ind.id)}">
         <span class="tile" aria-hidden="true">${ind.kanji}</span>
         <span class="ind-name">${esc(ind.name)}</span>
       </button>`).join("")}
     </div>
-    <button type="button" class="vote-btn" id="voteBtn" ${state.voteChoice && !state.voting ? "" : "disabled"}>
-      ${state.voting ? "送信中…" : (state.voteChoice ? `${code} × ${esc(IND(state.voteChoice).name)} で投稿する` : "業界を選んで投稿する")}
+    <button type="button" class="vote-btn" id="voteBtn" ${n > 0 && !state.voting ? "" : "disabled"}>
+      ${btnLabel}
     </button>
     ${state.voteError ? `<p class="vote-error">${esc(state.voteError)}</p>` : ""}`;
   area.querySelectorAll(".ind-card").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.voteChoice = btn.dataset.id;
-      state.detailIndustry = btn.dataset.id; // 選んだ業界の詳細も見せる
+      const id = btn.dataset.id;
+      const i = state.voteChoices.indexOf(id);
+      if (i >= 0) {
+        state.voteChoices.splice(i, 1);
+      } else {
+        state.voteChoices.push(id);
+        if (state.detailIndustry !== id) {
+          state.detailIndustry = id; // 選んだ業界の詳細も見せる
+          loadIndustry();
+        }
+      }
       renderVoteArea();
       renderChart();
       renderDetail();
@@ -792,34 +878,75 @@ function renderChart() {
       </button>`;
   }).join("");
   panel.innerHTML = head + `<div class="dist">${rows}</div>
-    <p class="chart-note">割合はこのタイプの総投稿数に対するもの。投稿すると即座に反映されます。</p>`;
+    <p class="chart-note">割合はこのタイプの総投票数(複数回答可)に対するもの。投稿すると即座に反映されます。</p>`;
   panel.querySelectorAll(".dist-row").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.detailIndustry = btn.dataset.id;
+      if (state.detailIndustry !== btn.dataset.id) {
+        state.detailIndustry = btn.dataset.id;
+        loadIndustry();
+      }
       renderChart();
       renderDetail();
     });
   });
 }
 
+function mbtiDistHtml() {
+  if (state.industryLoading) {
+    return `<div class="mini-state">MBTI分布を読み込み中…</div>`;
+  }
+  if (state.industryError) {
+    return `<div class="mini-state">${esc(state.industryError)}
+      <button type="button" class="retry-btn" id="indRetryBtn" style="margin-top:8px;padding:5px 16px">再試行</button></div>`;
+  }
+  const st = state.industryStats;
+  if (!st || st.industry !== state.detailIndustry) {
+    return `<div class="mini-state">読み込み中…</div>`;
+  }
+  const code = currentType();
+  const total = st.total || 1;
+  const max = Math.max(...st.items.map((i) => i.count), 1);
+  const rankIdx = st.items.findIndex((i) => i.type === code);
+  const mine = rankIdx >= 0 ? st.items[rankIdx] : null;
+  const youLine = mine && mine.count > 0
+    ? `あなたと同じ <b>${code}</b> は、この業界の投稿の <b>${Math.round(100 * mine.count / total)}%</b>(${st.items.length}タイプ中 ${rankIdx + 1}位)を占めています。`
+    : `この業界にはまだ <b>${code}</b> の投稿がありません。最初の1票を入れてみましょう。`;
+  const rows = st.items.map((item) => {
+    const pct = Math.round(100 * item.count / total);
+    const you = item.type === code;
+    return `
+      <div class="m-row" data-you="${you}" title="${item.type}(${esc(TYPES[item.type].label)}): ${item.count}票 (${pct}%)">
+        <span class="m-code">${item.type}${you ? `<span class="you-chip">あなた</span>` : ""}</span>
+        <span class="m-bar"><i style="width:${(100 * item.count / max).toFixed(1)}%"></i></span>
+        <span class="m-val">${pct}% <small>(${item.count})</small></span>
+      </div>`;
+  }).join("");
+  return `<p class="you-line">${youLine}</p><div class="mbti-dist">${rows}</div>`;
+}
+
 function renderDetail() {
   const panel = $("detailPanel");
   if (!state.detailIndustry) {
-    panel.innerHTML = `<div class="state-box">グラフの業界名をクリックすると、業界の解説と<br>あなたのタイプ向けのコメントが表示されます。</div>`;
+    panel.innerHTML = `<div class="state-box">グラフの業界名をクリックすると、その業界を志望する人の<br>MBTI分布と、あなたのタイプ向けのコメントが表示されます。</div>`;
     return;
   }
   const ind = IND(state.detailIndustry);
   const code = currentType();
   const { strengths, cautions } = typeComments(code, ind);
+  const nTotal = state.industryStats && state.industryStats.industry === state.detailIndustry
+    ? `<span class="n-badge">n=${state.industryStats.total}票</span>` : "";
   panel.innerHTML = `
     <div class="detail-head">
       <span class="tile" aria-hidden="true">${ind.kanji}</span>
       <div>
         <h3>${esc(ind.name)}</h3>
-        <p>${code}(${esc(TYPES[code].label)})から見た業界コメント</p>
+        <p>${code}(${esc(TYPES[code].label)})から見た業界情報</p>
       </div>
     </div>
     <p class="detail-desc">${esc(ind.desc)}</p>
+    <div class="panel-head"><p class="sec-title" style="margin:0">この業界を志望する人のMBTI分布</p>${nTotal}</div>
+    ${mbtiDistHtml()}
+    <hr class="divider">
     <div class="sc-grid">
       <div>
         <p class="sec-title">この業界で活きる強み</p>
@@ -833,6 +960,8 @@ function renderDetail() {
     <hr class="divider">
     <p class="sec-title">代表的な職種</p>
     <div class="role-chips">${ind.roles.map((r) => `<span>${esc(r)}</span>`).join("")}</div>`;
+  const retry = $("indRetryBtn");
+  if (retry) retry.addEventListener("click", loadIndustry);
 }
 
 renderToggles();
