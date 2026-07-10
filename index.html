@@ -345,7 +345,7 @@
       </div>
       <div>
         <div class="step-label"><span class="step-no">STEP 2</span><span class="step-title">あなたの志望業界を投稿</span></div>
-        <p class="step-note">あなたの回答が「同じタイプの人の傾向」のデータになります(1人1回・複数選択可)。</p>
+        <p class="step-note">あなたの回答が「同じタイプの人の傾向」のデータになります(複数選択可)。</p>
         <div id="voteArea"></div>
       </div>
     </section>
@@ -458,7 +458,6 @@ function demoMatrixItems() {
 /*__END_DATA_AND_LOGIC__*/
 
 // ---------- state ----------
-const VOTE_KEY = "mbtiCareerVote";
 const state = {
   poles: { EI: "I", SN: "N", TF: "T", JP: "J" },
   tab: "industries",
@@ -466,10 +465,12 @@ const state = {
   voteChoices: [],
   voting: false,
   voteError: null,
+  voted: null,    // このページ表示中に投稿した内容(リロードで再投稿可)
   counts: null,   // 票数行列(全分析の唯一のデータ源)
   loading: false,
   error: null
 };
+localStorage.removeItem("mbtiCareerVote"); // 旧バージョンの1人1回ガードを掃除
 
 const $ = (id) => document.getElementById(id);
 const isDemo = () => API_URL === "";
@@ -480,17 +481,6 @@ function currentType() {
 
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function savedVote() {
-  try {
-    const v = JSON.parse(localStorage.getItem(VOTE_KEY) || "null");
-    if (!v || !TYPES[v.type]) return null;
-    const industries = v.industries || (v.industry ? [v.industry] : []); // 旧形式互換
-    if (industries.length === 0 || industries.some((i) => !IND(i))) return null;
-    if (v.demo && !isDemo()) return null; // デモ中の投稿は本番では無効
-    return { ...v, industries };
-  } catch { return null; }
 }
 
 // ---------- data fetching ----------
@@ -528,7 +518,7 @@ async function loadMatrix() {
 async function submitVote() {
   const code = currentType();
   const industries = state.voteChoices;
-  if (industries.length === 0 || savedVote()) return;
+  if (industries.length === 0 || state.voted || state.voting) return;
   state.voting = true;
   state.voteError = null;
   renderVoteArea();
@@ -543,9 +533,7 @@ async function submitVote() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     }
-    localStorage.setItem(VOTE_KEY, JSON.stringify({
-      type: code, industries, at: new Date().toISOString(), demo: isDemo()
-    }));
+    state.voted = { type: code, industries, demo: isDemo() };
     state.voting = false;
     renderVoteArea();
     loadMatrix(); // 自分の票を全分析に反映
@@ -660,13 +648,14 @@ function renderTypeNow() {
 
 function renderVoteArea() {
   const area = $("voteArea");
-  const done = savedVote();
+  const done = state.voted;
   if (done) {
     const names = done.industries.map((id) => IND(id).name).join("、");
     area.innerHTML = `
       <div class="vote-done">
         <b>✓ 投稿ありがとうございました</b><br>
-        ${esc(done.type)} × ${esc(names)} として集計されています。${done.demo ? "(デモモードのため保存されていません)" : ""}
+        ${esc(done.type)} × ${esc(names)} として集計されています。${done.demo ? "(デモモードのため保存されていません)" : ""}<br>
+        <small style="color:var(--muted)">ページを再読み込みすると、もう一度投稿できます。</small>
       </div>`;
     return;
   }
