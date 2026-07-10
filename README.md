@@ -93,6 +93,19 @@ aws lambda update-function-url-config \
   --region ap-northeast-1
 ```
 
+## コンテンツの修正(職種・業界説明・タイプ説明)
+
+表示データはすべて `data.js` にまとまっている。**職種を直すときは `INDUSTRIES` の `roles` を編集**し、
+`npx vercel deploy --prod` で反映するだけ(バックエンドの変更は不要)。
+
+## データのリセット
+
+```bash
+python backend/reset.py        # 件数確認のみ
+python backend/reset.py --yes  # 全票削除(シード+実投稿)
+python backend/seed.py         # シードだけ入れ直す場合
+```
+
 ## コード更新
 
 - Lambda: `backend/deploy.sh`
