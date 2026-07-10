@@ -42,6 +42,23 @@ def _get_stats(mbti):
     return _response(200, {"type": mbti, "total": total, "items": items})
 
 
+def _get_matrix():
+    """全タイプ×全業界の票数行列(高々192件)。フロントはこれ1本で各種分析を導出する。"""
+    items = []
+    kwargs = {"ProjectionExpression": "mbti, industry, seed, votes"}
+    while True:
+        resp = table.scan(**kwargs)
+        items.extend(resp.get("Items", []))
+        if "LastEvaluatedKey" not in resp:
+            break
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+    out = [
+        {"type": item["mbti"], "industry": item["industry"], "count": _count(item)}
+        for item in items
+    ]
+    return _response(200, {"items": out})
+
+
 def _get_industry(industry):
     resp = table.query(
         IndexName=INDEX_NAME,
@@ -103,6 +120,9 @@ def lambda_handler(event, context):
         if mbti not in TYPE_CODES:
             return _response(400, {"error": "invalid type"})
         return _get_stats(mbti)
+
+    if method == "GET" and path == "/matrix":
+        return _get_matrix()
 
     if method == "GET" and path == "/industry":
         industry = qs.get("id") or ""

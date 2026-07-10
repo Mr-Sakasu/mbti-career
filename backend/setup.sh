@@ -67,7 +67,7 @@ EOF
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["dynamodb:Query", "dynamodb:UpdateItem"],
+      "Action": ["dynamodb:Query", "dynamodb:Scan", "dynamodb:UpdateItem"],
       "Resource": [
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE}",
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${TABLE}/index/*"
