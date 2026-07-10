@@ -473,7 +473,9 @@ const state = {
 localStorage.removeItem("mbtiCareerVote"); // 旧バージョンの1人1回ガードを掃除
 
 const $ = (id) => document.getElementById(id);
-const isDemo = () => API_URL === "";
+// API未設定時、または URL に ?demo=1 を付けたときはデモデータで動く
+const DEMO_PARAM = new URLSearchParams(location.search).has("demo");
+const isDemo = () => API_URL === "" || DEMO_PARAM;
 
 function currentType() {
   return AXES.map((a) => state.poles[a.key]).join("");
@@ -704,7 +706,7 @@ function renderChart() {
     <div class="panel-head">
       <h2>${code}(${esc(t.label)})の傾向分析</h2>
       ${state.counts && !state.loading && !state.error ? `<span class="n-badge">n=${total}票</span>` : ""}
-      ${isDemo() ? `<span class="demo-badge">デモデータ(API未接続)</span>` : ""}
+      ${isDemo() ? `<span class="demo-badge">${DEMO_PARAM ? "デモデータ表示中" : "デモデータ(API未接続)"}</span>` : ""}
     </div>
     <div class="tabs" role="tablist">${ANALYSES.map((a) => `
       <button type="button" class="tab-btn" role="tab" data-tab="${a.id}" aria-pressed="${a.id === analysis.id}">${a.label}</button>`).join("")}
