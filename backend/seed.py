@@ -1,8 +1,10 @@
-"""シードデータ投入スクリプト(ローカルで1回実行)。
+"""デモデータ投入スクリプト(ローカルで1回実行)。
 
-v1の軸ウェイトモデルを「もっともらしい初期分布」の生成にのみ再利用し、
-タイプごとに合計約30票をsoftmaxで12業界に配分してseed属性に書き込む。
-実投稿(votes)とは属性を分けているため、後からシードだけ削除・縮小できる。
+全16タイプに「6人程度が1業界ずつ投票した」規模のデモ票を入れる。
+配分はv1の軸ウェイトモデル(softmax)で、タイプごとにもっともらしい業界へ寄せる。
+
+デモ票は `seed` 属性、実投稿は `votes` 属性に分けて保存しているため、
+デモ票だけを後から一括削除できる: `python reset.py --seed-only --yes`
 
 実行: python seed.py [--dry-run]
 """
@@ -13,7 +15,7 @@ import os
 REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 TABLE_NAME = os.environ.get("TABLE_NAME", "mbti-industry-votes")
 
-SEED_TOTAL_PER_TYPE = 30
+DEMO_VOTES_PER_TYPE = 6  # 「6人程度」相当。1人=1業界1票の想定
 TEMPERATURE = 15.0
 
 AXES = ["EI", "SN", "TF", "JP"]
@@ -46,17 +48,18 @@ def old_score(code, weights):
     return score
 
 
-def seed_counts(code):
+def demo_counts(code):
+    """softmax比で DEMO_VOTES_PER_TYPE 票を配分(最大剰余法で合計を厳密に合わせる)。"""
     scores = {ind: old_score(code, w) for ind, w in INDUSTRY_WEIGHTS.items()}
     max_s = max(scores.values())
     exps = {ind: math.exp((s - max_s) / TEMPERATURE) for ind, s in scores.items()}
     denom = sum(exps.values())
-    # 各業界最低1票、残りをsoftmax比で配分
-    counts = {ind: 1 for ind in INDUSTRY_WEIGHTS}
-    remain = SEED_TOTAL_PER_TYPE - len(counts)
-    for ind, e in exps.items():
-        counts[ind] += round(remain * e / denom)
-    return counts
+    quotas = {ind: DEMO_VOTES_PER_TYPE * e / denom for ind, e in exps.items()}
+    counts = {ind: int(q) for ind, q in quotas.items()}
+    remain = DEMO_VOTES_PER_TYPE - sum(counts.values())
+    for ind, _ in sorted(quotas.items(), key=lambda x: x[1] - int(x[1]), reverse=True)[:remain]:
+        counts[ind] += 1
+    return {ind: n for ind, n in counts.items() if n > 0}
 
 
 def main():
@@ -66,19 +69,23 @@ def main():
 
     all_items = []
     for code in TYPE_CODES:
-        counts = seed_counts(code)
+        counts = demo_counts(code)
         for ind, n in counts.items():
-            all_items.append({"mbti": code, "industry": ind, "seed": n, "votes": 0})
-        top = sorted(counts.items(), key=lambda x: -x[1])[:3]
-        print(f"{code}: total={sum(counts.values())} top3={top}")
+            all_items.append({"mbti": code, "industry": ind, "seed": n})
+        dist = sorted(counts.items(), key=lambda x: -x[1])
+        print(f"{code}: total={sum(counts.values())} {dist}")
 
     if args.dry_run:
         print(f"\n(dry-run) {len(all_items)} 件は書き込みませんでした")
         return
 
     import boto3
+    from botocore.exceptions import ClientError
+
     table = boto3.resource("dynamodb", region_name=REGION).Table(TABLE_NAME)
+
     # put_itemだと既存のvotes(実投稿)を消してしまうため、seed属性だけをSETする
+    seeded = {(it["mbti"], it["industry"]) for it in all_items}
     for i, item in enumerate(all_items, 1):
         table.update_item(
             Key={"mbti": item["mbti"], "industry": item["industry"]},
@@ -87,8 +94,32 @@ def main():
         )
         if i % 24 == 0:
             print(f"  {i}/{len(all_items)} 件書き込み済み…")
-    print(f"\n{len(all_items)} 件を {TABLE_NAME} に書き込みました(votes属性は温存)")
-    print("注意: プロビジョンド5WCUのため1分弱かかることがあります")
+
+    # 今回配分が0になったセルに古いseedが残っていれば消す(既存項目のみ、実投稿は温存)
+    cleaned = 0
+    kwargs = {"ProjectionExpression": "mbti, industry, seed"}
+    while True:
+        resp = table.scan(**kwargs)
+        for it in resp.get("Items", []):
+            if "seed" in it and (it["mbti"], it["industry"]) not in seeded:
+                try:
+                    table.update_item(
+                        Key={"mbti": it["mbti"], "industry": it["industry"]},
+                        UpdateExpression="REMOVE seed",
+                        ConditionExpression="attribute_exists(seed)",
+                    )
+                    cleaned += 1
+                except ClientError as e:
+                    if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
+                        raise
+        if "LastEvaluatedKey" not in resp:
+            break
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+    print(f"\nデモ票 {len(all_items)} 件を {TABLE_NAME} に書き込みました(votes属性=実投稿は温存)")
+    if cleaned:
+        print(f"古いデモ票 {cleaned} 件を掃除しました")
+    print("デモ票だけを消すには: python reset.py --seed-only --yes")
 
 
 if __name__ == "__main__":

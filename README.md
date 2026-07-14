@@ -38,14 +38,15 @@ cd backend
 
 最後に表示される **Function URL** を控える。
 
-### 2. シードデータ投入(1回だけ)
+### 2. デモデータ投入(1回だけ)
 
 ```bash
 python seed.py --dry-run   # 分布を確認(書き込まない)
-python seed.py             # 16タイプ×12業界=192件を書き込み(1分弱かかる)
+python seed.py             # 全16タイプに「6人程度」相当のデモ票を書き込み
 ```
 
-シード票は `seed` 属性、実投稿は `votes` 属性に分けて保存されるため、後からシードだけ削除・縮小できる。
+デモ票は `seed` 属性、実投稿は `votes` 属性に分けて保存される(=内部的にデモとわかる)ため、
+デモ票だけを後から一括削除できる: `python reset.py --seed-only --yes`
 
 テーブルは PK=`mbti` / SK=`industry`。業界→MBTIの逆引きにはGSI `by-industry`(PK=`industry` / SK=`mbti`、
 プロビジョンド5RCU/5WCU)を使う。GSIも `setup.sh` が作成する。
@@ -101,9 +102,10 @@ aws lambda update-function-url-config \
 ## データのリセット
 
 ```bash
-python backend/reset.py        # 件数確認のみ
-python backend/reset.py --yes  # 全票削除(シード+実投稿)
-python backend/seed.py         # シードだけ入れ直す場合
+python backend/reset.py                    # 件数確認のみ(削除しない)
+python backend/reset.py --seed-only --yes  # デモ票のみ削除(実投稿は残す)
+python backend/reset.py --yes              # 全票削除(デモ票+実投稿)
+python backend/seed.py                     # デモ票を入れ直す
 ```
 
 ## コード更新
@@ -119,5 +121,5 @@ python backend/seed.py         # シードだけ入れ直す場合
   スロットルされるだけ。Lambdaもアカウントの同時実行上限(10)で自然に頭打ちになる
 - **DynamoDBは必ずプロビジョンドモード**: オンデマンドに変えると無料枠外(微額だが課金される)
 - **VercelのプレビューURLからはAPIが叩けない**(CORSを絞った場合)。本番URLで確認する
-- シード削除: `seed` 属性を0にする(または項目ごと削除して `votes` のみ残す)
-- 傾向データは投稿+シードにもとづく参考コンテンツであり、適職を保証するものではない(フッターに明記済み)
+- デモ票削除: `python backend/reset.py --seed-only --yes`(`seed` 属性のみ除去し、実投稿 `votes` は温存)
+- 傾向データは投稿+デモ票にもとづく参考コンテンツであり、適職を保証するものではない(フッターに明記済み)
